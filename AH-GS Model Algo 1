@@ -1,4 +1,4 @@
-`student_institution_matching <- function(stud_prefs, inst_major_prefs, quotas, student_majors, student_ranks) {
+student_institution_matching <- function(stud_prefs, inst_major_prefs, quotas, student_majors, student_ranks) {
   n_students <- length(stud_prefs)
   n_insts <- length(quotas)
   
@@ -106,7 +106,8 @@ inst_major_prefs <- list(
   c("Econ", "Law")
 )
 quotas <- c(2,1,1)
-student_ranks <- c(4,2,3,1)
+student_ranks <- c(1,2,3,4)
 
 result <- student_institution_matching(stud_prefs, inst_major_prefs, quotas, student_majors, student_ranks)
-print(result)``
+print(result)
+r
