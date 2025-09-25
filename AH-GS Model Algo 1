@@ -1,3 +1,4 @@
+ #  I'm working to improve this code to be handle to handle all modifications without problem.
 student_institution_matching <- function(stud_prefs, inst_major_prefs, quotas, student_majors, student_ranks) {
   n_students <- length(stud_prefs)
   n_insts <- length(quotas)
