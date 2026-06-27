@@ -1,1 +1,319 @@
-# I'm working on the R code for the second algorithm, which will be released soon.
+# ============================================================
+# INPUTS  — 6 STUDENTS
+# ============================================================
+# We have six students and four institutions. Students belong to three majors: Economics, Law, and Engineering. 
+# Student 1 is ranked first and has an Economics major; Student 2 is ranked second and has a Law major;
+# Student 3 is ranked third and has a Law major; Student 4 is ranked fourth and has an Economics major; 
+# Student 5 is ranked fifth and has an Engineering major; and Student 6 is ranked sixth and has a Law major. 
+# The institutions have quotas of 2, 1, 2, and 1 respectively. Institution 1 prefers Law over Economics and Engineering; 
+# Institution 2 prefers Economics over Engineering and Law; Institution 3 prefers Engineering over Law and Economics; 
+# and Institution 4 prefers Law over Economics and Engineering. The policy variable is set to (v = 2), 
+# meaning that students are grouped into ranking classes of two students each.
+
+# Student preferences: each student ranks all institutions exactly once
+stud_prefs <- list(
+  c(3, 2, 1, 4),  # Student 1
+  c(1, 3, 2, 4),  # Student 2
+  c(2, 3, 1, 4),  # Student 3
+  c(1, 2, 3, 4),  # Student 4
+  c(3, 2, 4, 1),  # Student 5
+  c(3, 2, 4, 1)   # Student 6
+)
+
+# Institution major preferences: from most preferred to least preferred
+inst_major_prefs <- list(
+  c("Econ", "Law", "Engineering"),          # Institution 1
+  c("Econ", "Engineering", "Law"),          # Institution 2
+  c("Engineering", "Law", "Econ"),          # Institution 3
+  c("Law", "Econ", "Engineering")           # Institution 4
+)
+
+# Institution quotas
+quotas <- c(1, 2, 1, 2)
+
+# Student majors
+student_majors <- c(
+  "Econ",         # Student 1
+  "Law",          # Student 2
+  "Law",          # Student 3
+  "Econ",         # Student 4
+  "Engineering",  # Student 5
+  "Law"           # Student 6
+)
+
+# Student final ranking: lower number = better rank
+student_ranks <- c(1, 2, 3, 4, 5, 6)
+#student_ranks <- c(6, 5, 4, 3, 2, 1)
+
+# Policy variable v = class size
+# v = 1: close to pure AH
+# v = n: close to Algorithm 1 / GS-style
+# v = 2 creates:
+# Class 1: Students 1 and 2
+# Class 2: Students 3 and 4
+# Class 3: Students 5 and 6
+v <- 2
+
+# Optional names for readable output
+student_names <- paste0("Student_", 1:length(stud_prefs))
+institution_names <- paste0("Institution_", 1:length(quotas))
+
+
+# ============================================================
+# AH-GS ALGORITHM 2 WITH POLICY VARIABLE v
+# ============================================================
+
+student_institution_matching_alg2 <- function(stud_prefs,
+                                              inst_major_prefs,
+                                              quotas,
+                                              student_majors,
+                                              student_ranks,
+                                              v,
+                                              student_names = NULL,
+                                              institution_names = NULL,
+                                              verbose = TRUE) {
+  
+  n <- length(stud_prefs)
+  m <- length(quotas)
+  
+  if (is.null(student_names)) {
+    student_names <- paste0("Student_", 1:n)
+  }
+  
+  if (is.null(institution_names)) {
+    institution_names <- paste0("Institution_", 1:m)
+  }
+  
+  # Basic checks
+  if (sum(quotas) < n) {
+    stop("Total quotas are smaller than the number of students.")
+  }
+  
+  if (v < 1 || v > n) {
+    stop("v must be between 1 and the number of students.")
+  }
+  
+  for (s in 1:n) {
+    if (length(stud_prefs[[s]]) != m) {
+      stop(paste("Student", s, "must rank all institutions."))
+    }
+    
+    if (!setequal(stud_prefs[[s]], 1:m)) {
+      stop(paste("Student", s, "must rank each institution exactly once."))
+    }
+  }
+  
+  # Order students by final ranking
+  student_order <- order(student_ranks)
+  
+  # Create classes according to v
+  class_id <- rep(NA_integer_, n)
+  ordered_classes <- split(student_order, ceiling(seq_along(student_order) / v))
+  
+  for (c in seq_along(ordered_classes)) {
+    class_id[ordered_classes[[c]]] <- c
+  }
+  
+  # Assignment list
+  assignment <- vector("list", m)
+  for (inst in 1:m) {
+    assignment[[inst]] <- integer(0)
+  }
+  
+  # Direct student assignment
+  assigned_inst <- rep(NA_integer_, n)
+  
+  # Track next choice for each student
+  next_choice <- rep(1, n)
+  
+  # History table for manual verification
+  history <- data.frame(
+    step = integer(),
+    class = integer(),
+    action = character(),
+    student = character(),
+    institution = character(),
+    note = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  step <- 0
+  
+  add_history <- function(class, action, student, inst, note) {
+    step <<- step + 1
+    history <<- rbind(
+      history,
+      data.frame(
+        step = step,
+        class = class,
+        action = action,
+        student = student_names[student],
+        institution = institution_names[inst],
+        note = note,
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  
+  # Find worst student only inside the current class
+  find_worst_in_current_class <- function(inst, students_in_inst, current_class) {
+    
+    candidates <- students_in_inst[class_id[students_in_inst] == current_class]
+    
+    if (length(candidates) == 0) {
+      return(NULL)
+    }
+    
+    candidate_majors <- student_majors[candidates]
+    major_pref <- inst_major_prefs[[inst]]
+    
+    # Higher number = less preferred major
+    major_rank <- match(candidate_majors, major_pref)
+    major_rank[is.na(major_rank)] <- length(major_pref) + 1
+    
+    # Least preferred major among current-class students
+    worst_major_rank <- max(major_rank)
+    worst_major_candidates <- candidates[major_rank == worst_major_rank]
+    
+    # Among them, remove the worst-ranked student
+    worst_student <- worst_major_candidates[
+      which.max(student_ranks[worst_major_candidates])
+    ]
+    
+    return(worst_student)
+  }
+  
+  # ============================================================
+  # Main algorithm: process class by class
+  # ============================================================
+  
+  for (c in seq_along(ordered_classes)) {
+    
+    students_in_class <- ordered_classes[[c]]
+    
+    for (s0 in students_in_class) {
+      
+      current_student <- s0
+      
+      while (is.na(assigned_inst[current_student])) {
+        
+        if (next_choice[current_student] > m) {
+          stop(paste(student_names[current_student], "has exhausted all preferences."))
+        }
+        
+        inst <- stud_prefs[[current_student]][next_choice[current_student]]
+        
+        # Temporary assignment
+        assignment[[inst]] <- c(assignment[[inst]], current_student)
+        assigned_inst[current_student] <- inst
+        
+        add_history(
+          class = c,
+          action = "proposal",
+          student = current_student,
+          inst = inst,
+          note = paste(
+            student_names[current_student],
+            "is temporarily assigned to",
+            institution_names[inst]
+          )
+        )
+        
+        # If quota is respected, accept
+        if (length(assignment[[inst]]) <= quotas[inst]) {
+          add_history(
+            class = c,
+            action = "accepted",
+            student = current_student,
+            inst = inst,
+            note = "Quota not exceeded"
+          )
+          break
+        }
+        
+        # If quota is exceeded, remove only from the current class
+        rejected <- find_worst_in_current_class(
+          inst = inst,
+          students_in_inst = assignment[[inst]],
+          current_class = c
+        )
+        
+        # If no student from current class can be removed, reject the proposer
+        if (is.null(rejected)) {
+          rejected <- current_student
+        }
+        
+        assignment[[inst]] <- assignment[[inst]][assignment[[inst]] != rejected]
+        assigned_inst[rejected] <- NA_integer_
+        
+        add_history(
+          class = c,
+          action = "rejected",
+          student = rejected,
+          inst = inst,
+          note = paste(
+            student_names[rejected],
+            "removed within current class only"
+          )
+        )
+        
+        # Rejected student moves to next preferred institution
+        next_choice[rejected] <- next_choice[rejected] + 1
+        
+        current_student <- rejected
+      }
+    }
+  }
+  
+  # Readable output
+  readable_assignment <- lapply(1:m, function(inst) {
+    students <- assignment[[inst]]
+    if (length(students) == 0) {
+      return(character(0))
+    }
+    student_names[students]
+  })
+  
+  names(readable_assignment) <- institution_names
+  
+  result <- list(
+    v_class_size = v,
+    classes = lapply(ordered_classes, function(x) student_names[x]),
+    assignment_by_institution = readable_assignment,
+    assignment_vector = setNames(institution_names[assigned_inst], student_names),
+    history = history
+  )
+  
+  if (verbose) {
+    print("Classes:")
+    print(result$classes)
+    
+    print("Final assignment by institution:")
+    print(result$assignment_by_institution)
+    
+    print("Assignment vector:")
+    print(result$assignment_vector)
+    
+    print("Step-by-step history:")
+    print(result$history)
+  }
+  
+  return(result)
+}
+
+
+# ============================================================
+# RUN ALGORITHM 2
+# ============================================================
+
+result_alg2 <- student_institution_matching_alg2(
+  stud_prefs = stud_prefs,
+  inst_major_prefs = inst_major_prefs,
+  quotas = quotas,
+  student_majors = student_majors,
+  student_ranks = student_ranks,
+  v = v,
+  student_names = student_names,
+  institution_names = institution_names,
+  verbose = TRUE
+)
